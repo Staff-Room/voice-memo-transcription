@@ -48,7 +48,7 @@ graph TD
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/staffroom-org/voice-memo-transcription.git
+   git clone https://github.com/Staff-Room/voice-memo-transcription.git
    cd voice-memo-transcription
    ```
 
@@ -328,6 +328,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Built with ❤️ for productivity enthusiasts who want to make their voice recordings searchable and actionable**
 
-[Report Bug](https://github.com/staffroom-org/voice-memo-transcription/issues) • [Request Feature](https://github.com/staffroom-org/voice-memo-transcription/issues) • [Documentation](https://github.com/staffroom-org/voice-memo-transcription/wiki)
+[Report Bug](https://github.com/Staff-Room/voice-memo-transcription/issues) • [Request Feature](https://github.com/Staff-Room/voice-memo-transcription/issues) • [Documentation](https://github.com/Staff-Room/voice-memo-transcription/wiki)
 
 </div>
