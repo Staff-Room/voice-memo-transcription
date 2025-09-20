@@ -104,6 +104,8 @@ class VoiceMemoProcessor:
             if notion_result['success']:
                 print("✅ Notion page created successfully!")
                 print(f"📄 Page title: {notion_result['page_data']['title']}")
+                if notion_result.get('page_url'):
+                    print(f"🔗 Page URL: {notion_result['page_url']}")
             else:
                 print(f"⚠️  Notion page creation warning: {notion_result['error']}")
             
@@ -244,6 +246,9 @@ class VoiceMemoProcessor:
             word_count = transcription_result['transcription'].get('word_count', 0)
             print(f"📄 Content: {word_count} words transcribed")
         
+        if notion_result['success'] and notion_result.get('page_url'):
+            print(f"🌐 Notion URL: {notion_result['page_url']}")
+        
         print(f"\n🎯 Next Steps:")
         print(f"   1. Review the Notion page content")
         print(f"   2. Consider the {len(linking_suggestions)} linking suggestions")
@@ -342,6 +347,8 @@ def main():
         result = processor.run_batch_mode(args.file)
         if result['success']:
             print(f"✅ Successfully processed: {os.path.basename(args.file)}")
+            if result.get('notion_page', {}).get('page_url'):
+                print(f"🌐 Notion page: {result['notion_page']['page_url']}")
             return 0
         else:
             print(f"❌ Processing failed: {result['error']}")
