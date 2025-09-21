@@ -1,0 +1,170 @@
+name: Test Notion Integration
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run daily at 2 AM UTC to catch any external API changes
+    - cron: '0 2 * * *'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        # Install testing dependencies
+        pip install pytest pytest-cov
+    
+    - name: Lint with flake8 (if available)
+      run: |
+        # Install flake8 for basic linting
+        pip install flake8
+        # Stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Exit-zero treats all errors as warnings
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+      continue-on-error: true
+    
+    - name: Test Notion connection
+      env:
+        NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+        NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+      run: |
+        # Test basic imports work
+        python -c "import notion_integration; print('✅ notion_integration module imports successfully')"
+        
+        # Test environment variables are available
+        python -c "
+        import os
+        token = os.getenv('NOTION_TOKEN')
+        db_id = os.getenv('NOTION_DATABASE_ID')
+        print(f'✅ NOTION_TOKEN: {'Set' if token else 'Missing'}')
+        print(f'✅ NOTION_DATABASE_ID: {'Set' if db_id else 'Missing'}')
+        if not token or not db_id:
+            print('❌ Missing required environment variables')
+            exit(1)
+        print('✅ All environment variables present')
+        "
+        
+        # Test Notion integration
+        python -c "
+        from notion_integration import NotionIntegrator
+        integrator = NotionIntegrator()
+        
+        # Test database connection
+        result = integrator.test_database_connection()
+        if result['success']:
+            print('✅ Notion database connection successful')
+            print(f'   Database: {result.get(\"database_title\", \"Unknown\")}')
+            print(f'   Properties: {len(result.get(\"properties\", {}))}')
+            print(f'   Existing pages: {result.get(\"existing_pages\", 0)}')
+        else:
+            print(f'❌ Notion database connection failed: {result.get(\"error\")}')
+            exit(1)
+        "
+    
+    - name: Test audio processing modules
+      run: |
+        # Test audio processor imports (without actual audio files)
+        python -c "
+        try:
+            from audio_processor import AudioFileProcessor
+            print('✅ AudioFileProcessor imports successfully')
+        except ImportError as e:
+            print(f'⚠️  AudioFileProcessor import warning: {e}')
+        "
+        
+        # Test transcriber imports
+        python -c "
+        try:
+            from transcriber import WhisperTranscriber
+            print('✅ WhisperTranscriber imports successfully')
+        except ImportError as e:
+            print(f'⚠️  WhisperTranscriber import warning: {e}')
+        "
+    
+    - name: Run pytest (if test files exist)
+      run: |
+        # Run pytest if test files exist
+        if find . -name "test_*.py" -o -name "*_test.py" | grep -q .; then
+          echo "✅ Found test files, running pytest..."
+          pytest -v --tb=short
+        else
+          echo "ℹ️  No pytest test files found, skipping pytest"
+        fi
+      continue-on-error: true
+    
+    - name: Test complete workflow (without actual audio)
+      env:
+        NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+        NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+      run: |
+        # Test that the main processor can be imported and initialized
+        python -c "
+        from voice_memo_processor import VoiceMemoProcessor
+        
+        # Initialize processor (this tests all modules work together)
+        try:
+            processor = VoiceMemoProcessor(whisper_model='tiny')  # Use smallest model for testing
+            print('✅ VoiceMemoProcessor initialized successfully')
+        except Exception as e:
+            print(f'❌ VoiceMemoProcessor initialization failed: {e}')
+            exit(1)
+        "
+
+  security-check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Check for secrets in code
+      run: |
+        # Check that no secrets are accidentally committed
+        echo "🔍 Checking for potential secrets in code..."
+        
+        # Check for hardcoded tokens (basic patterns)
+        if grep -r -i "notion_token.*=" . --exclude-dir=.git --exclude-dir=venv --exclude="*.yml" --exclude="*.yaml" | grep -v "your_notion_integration_token_here" | grep -v "NOTION_TOKEN"; then
+          echo "❌ Found potential hardcoded tokens!"
+          exit 1
+        fi
+        
+        if grep -r -i "secret.*=" . --exclude-dir=.git --exclude-dir=venv --exclude="*.yml" --exclude="*.yaml" | grep -v "secrets\."; then
+          echo "❌ Found potential hardcoded secrets!"
+          exit 1
+        fi
+        
+        echo "✅ No hardcoded secrets detected"
+    
+    - name: Verify .env is gitignored
+      run: |
+        if [ -f .gitignore ] && grep -q "^\.env$" .gitignore; then
+          echo "✅ .env file is properly gitignored"
+        else
+          echo "❌ .env file should be in .gitignore"
+          exit 1
+        fi

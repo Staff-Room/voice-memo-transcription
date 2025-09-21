@@ -19,6 +19,8 @@ A comprehensive Python workflow that automatically discovers Voice Memos from iC
 - **📊 Rich Metadata**: Preserves audio file details, duration, creation dates, and tags
 - **🎛️ Flexible Models**: Choose from 5 Whisper models to balance speed vs accuracy
 - **🚀 Easy Operation**: Simple command-line interface with batch and interactive modes
+- **🤖 Continuous Monitoring**: Daemon mode automatically processes new recordings as they're created
+- **📈 Persistent Tracking**: SQLite database prevents duplicate processing and provides audit trail
 
 ## 🏗️ Architecture
 
@@ -95,6 +97,32 @@ This will:
 ./run.sh --model small    # Options: tiny, base, small, medium, large
 ```
 
+#### 🤖 Continuous Monitoring Mode (Daemon)
+```bash
+./run.sh --daemon
+```
+
+This will:
+1. 🔄 **Continuously monitor** Voice Memo directories for new files
+2. 🎯 **Automatically process** new recordings as they're created
+3. 📊 **Track processed files** to avoid duplicates
+4. 🌐 **Create Notion pages** for each new voice memo
+5. 📝 **Log all activity** to voice_memo_monitor.log
+
+**Daemon Options:**
+```bash
+./run.sh --daemon --polling-interval 30    # Check every 30 seconds
+./run.sh --daemon --min-file-age 60        # Wait 60s before processing
+./run.sh --daemon --max-file-age-days 3    # Only process files < 3 days old
+```
+
+#### 🔍 Test New File Detection
+```bash
+./run.sh --scan-only
+```
+
+This runs a single scan for new files without continuous monitoring, perfect for testing.
+
 ## 🎛️ Whisper Model Selection
 
 | Model  | Speed    | Accuracy | Use Case | Download Size |
@@ -104,6 +132,85 @@ This will:
 | `small`| Medium   | Better   | Higher quality needs | ~244MB |
 | `medium`| Slow    | High     | Professional transcription | ~769MB |
 | `large`| Slowest  | Highest  | Maximum accuracy | ~1550MB |
+
+## 🤖 Continuous Monitoring (Daemon Mode)
+
+The system can run continuously in the background, automatically processing new Voice Memos as they're created. This is perfect for **set-and-forget automation**.
+
+### 🔄 How It Works
+
+1. **File Monitoring**: Continuously scans Voice Memo directories
+2. **Smart Detection**: Only processes new files (avoids duplicates)
+3. **File Completion**: Waits for files to finish syncing before processing
+4. **Automatic Processing**: Transcribes and creates Notion pages automatically
+5. **Persistent Tracking**: SQLite database tracks processed files
+6. **Comprehensive Logging**: All activity logged to `voice_memo_monitor.log`
+
+### 🚀 Starting Daemon Mode
+
+```bash
+# Basic daemon mode (polls every 60 seconds)
+./run.sh --daemon
+
+# Custom polling interval (30 seconds)
+./run.sh --daemon --polling-interval 30
+
+# Conservative processing (wait 2 minutes for file completion)
+./run.sh --daemon --min-file-age 120
+
+# Only process very recent files (last 3 days)
+./run.sh --daemon --max-file-age-days 3
+```
+
+### 📊 Monitoring Status
+
+While running, the daemon provides real-time information:
+
+```
+🤖 Starting continuous voice memo monitoring...
+📋 Polling interval: 60 seconds
+📊 Database: processed_files.db
+📈 Total files processed: 42
+📈 Files processed in last 24h: 3
+
+🔍 Starting scan for new voice memos...
+✅ Found 1 new voice memo(s)
+🎙️ Processing: Meeting Notes 2024-09-19.m4a
+✅ Successfully processed: Meeting Notes 2024-09-19.m4a
+🌐 Notion page: https://www.notion.so/your-page-id
+📊 Scan completed: 1 found, 1 processed, 0 failed, 2.3s
+🔍 Waiting 60 seconds until next scan...
+```
+
+### 🛑 Stopping the Daemon
+
+- **Interactive**: Press `Ctrl+C` to gracefully stop
+- **System**: Use standard process management (`kill`, `pkill`, etc.)
+
+### 📈 Performance & Reliability
+
+- **Efficient**: Only scans directories, doesn't constantly watch files
+- **Resilient**: Continues running even if individual files fail
+- **Smart**: Detects file completion to avoid processing partial syncs
+- **Logged**: Complete audit trail of all processing activity
+
+### 🔧 Configuration Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--polling-interval` | 60 | Seconds between directory scans |
+| `--min-file-age` | 30 | Seconds to wait before processing (ensures completion) |
+| `--max-file-age-days` | 7 | Maximum age of files to process (days) |
+
+### 📁 Database Tracking
+
+The daemon creates `processed_files.db` to track:
+- ✅ Successfully processed files
+- ❌ Failed processing attempts
+- 📊 Processing timestamps
+- 🔍 File signatures (path, size, modification time)
+
+This prevents reprocessing the same file multiple times.
 
 ## 🔗 Intelligent Activity Linking
 
@@ -161,6 +268,66 @@ Each processed Voice Memo creates a structured page containing:
 - **Storage**: ~2GB free space for model downloads
 - **iCloud**: Voice Memos synced to iCloud Drive
 - **Notion**: Integration via Claude Code's Notion MCP tools
+
+## 🧪 Continuous Integration & Testing
+
+This project includes automated testing via GitHub Actions that validates:
+
+- ✅ **Notion API connectivity** - Ensures database access works
+- ✅ **Module imports** - Verifies all dependencies are properly installed
+- ✅ **Environment setup** - Checks configuration is valid
+- ✅ **Security scanning** - Prevents secrets from being committed
+
+### Setting Up GitHub Secrets
+
+To enable automated testing in your fork:
+
+1. **Navigate to your repository on GitHub**
+2. **Go to Settings → Secrets and variables → Actions**
+3. **Add the following Repository Secrets:**
+
+   | Secret Name | Description | Example |
+   |-------------|-------------|---------|
+   | `NOTION_TOKEN` | Your Notion integration token | `secret_abc123...` |
+   | `NOTION_DATABASE_ID` | Your content database ID | `1234abcd-5678-efgh...` |
+
+### Getting Your Notion Credentials
+
+#### Notion Integration Token
+1. Go to [Notion Integrations](https://www.notion.so/my-integrations)
+2. Click "New integration"
+3. Give it a name like "Voice Memo CI Testing"
+4. Copy the "Internal Integration Token"
+
+#### Database ID
+1. Open your Notion content database
+2. Copy the URL - it looks like: `https://notion.so/workspace/DATABASE_ID?v=...`
+3. Extract the `DATABASE_ID` part (32 characters)
+
+### Test Triggers
+
+The workflow automatically runs on:
+- **Push to main branch** - Validates changes don't break integration
+- **Pull requests** - Tests proposed changes before merge
+- **Daily at 2 AM UTC** - Catches external API changes
+
+The tests validate Notion connectivity, module imports, and security without requiring actual audio files.
+
+### Local Testing
+
+Test your Notion connection locally:
+
+```bash
+# Test environment variables are set
+python -c "import os; print('NOTION_TOKEN:', 'Set' if os.getenv('NOTION_TOKEN') else 'Missing')"
+
+# Test database connection
+python -c "
+from notion_integration import NotionIntegrator
+result = NotionIntegrator().test_database_connection()
+print('Database connection:', 'Success' if result['success'] else f'Failed: {result[\"error\"]}')
+"
+```
 
 ## 📊 Example Output
 

@@ -28,12 +28,30 @@ if ! python -c "import whisper" 2>/dev/null; then
     pip install -r requirements.txt
 fi
 
-# Run the voice memo processor
-echo "🎙️ Starting Voice Memo Processor..."
-echo ""
+# Check for daemon mode to adjust messaging
+if [[ "$*" == *"--daemon"* ]]; then
+    echo "🤖 Starting Voice Memo Processor in continuous monitoring mode..."
+    echo "📋 Press Ctrl+C to stop monitoring"
+    echo ""
+elif [[ "$*" == *"--scan-only"* ]]; then
+    echo "🔍 Starting Voice Memo Processor in scan-only mode..."
+    echo ""
+else
+    echo "🎙️ Starting Voice Memo Processor..."
+    echo ""
+fi
 
 # Pass all arguments to the script
 python voice_memo_processor.py "$@"
 
-echo ""
-echo "✨ Voice Memo Processor finished."
+# Different exit messages based on mode
+if [[ "$*" == *"--daemon"* ]]; then
+    echo ""
+    echo "👋 Voice Memo monitoring stopped."
+elif [[ "$*" == *"--scan-only"* ]]; then
+    echo ""
+    echo "🔍 Scan completed."
+else
+    echo ""
+    echo "✨ Voice Memo Processor finished."
+fi

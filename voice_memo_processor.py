@@ -25,6 +25,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from audio_processor import AudioFileProcessor
 from transcriber import WhisperTranscriber
 from notion_integration import NotionIntegrator
+from continuous_monitor import ContinuousVoiceMemoMonitor, MonitorConfig
 
 
 class VoiceMemoProcessor:
@@ -316,6 +317,34 @@ def main():
         action='store_true',
         help='Only list available files without processing'
     )
+    parser.add_argument(
+        '--daemon',
+        action='store_true',
+        help='Run in continuous monitoring mode (daemon)'
+    )
+    parser.add_argument(
+        '--polling-interval',
+        type=int,
+        default=60,
+        help='Polling interval in seconds for daemon mode (default: 60)'
+    )
+    parser.add_argument(
+        '--min-file-age',
+        type=int,
+        default=30,
+        help='Minimum file age in seconds before processing (default: 30)'
+    )
+    parser.add_argument(
+        '--max-file-age-days',
+        type=int,
+        default=7,
+        help='Maximum file age in days to process (default: 7)'
+    )
+    parser.add_argument(
+        '--scan-only',
+        action='store_true',
+        help='Run single scan for new files and exit (useful for testing)'
+    )
     
     args = parser.parse_args()
     
@@ -325,6 +354,49 @@ def main():
     except Exception as e:
         print(f"❌ Failed to initialize processor: {e}")
         return 1
+    
+    # Daemon mode (continuous monitoring)
+    if args.daemon or args.scan_only:
+        config = MonitorConfig(
+            polling_interval=args.polling_interval,
+            min_file_age=args.min_file_age,
+            max_file_age_days=args.max_file_age_days,
+            db_path="processed_files.db",
+            log_level="INFO"
+        )
+        
+        # Create processor callback
+        def process_voice_memo(file_path: str) -> Dict:
+            """Process a voice memo file."""
+            return processor.run_batch_mode(file_path)
+        
+        monitor = ContinuousVoiceMemoMonitor(config, process_voice_memo)
+        
+        if args.scan_only:
+            print("🔍 Running single scan for new voice memos...")
+            result = monitor.run_single_scan()
+            
+            if result['success']:
+                print(f"✅ Scan completed: {result['files_found']} found, {result['files_processed']} processed")
+                if result['files_processed'] > 0:
+                    print("📊 Check the processed_files.db for details")
+                return 0
+            else:
+                print(f"❌ Scan failed: {result['error']}")
+                return 1
+        else:
+            print("🤖 Starting continuous monitoring mode...")
+            print("📋 Press Ctrl+C to stop")
+            
+            try:
+                monitor.start_continuous_monitoring()
+                return 0
+            except KeyboardInterrupt:
+                print("\n👋 Monitoring stopped by user")
+                return 0
+            except Exception as e:
+                print(f"\n❌ Monitoring failed: {e}")
+                return 1
     
     # List-only mode
     if args.list_only:
